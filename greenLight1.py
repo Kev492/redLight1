@@ -6,7 +6,7 @@ import os
 output_folder = 'C:/pyworkspace1/captured/trafficLight/trafficLightImage/greenLight'
 
 # 이미지 불러오기
-image_path = 'C:/pyworkspace1/captured/trafficLight/trafficLightImage/image3.jpeg'
+image_path = 'C:/pyworkspace1/captured/trafficLight/trafficLightImage/image14.jpeg'
 
 target_image = cv2.imread('C:/pyworkspace1/captured/trafficLight/trafficLightImage/greenPerson1.jpeg')
 
@@ -42,44 +42,33 @@ contours = sorted(contours, key=cv2.contourArea, reverse=True)[:10]  # Get the l
 best_match = None
 best_match_score = float('-inf')
 
-# Scale factors to resize the target image
-scale_factors = [0.5, 0.75, 1.0, 1.25, 1.5]
+# Resize the target image to match the size of the largest green object
+for contour in contours:
+    x, y, w, h = cv2.boundingRect(contour)
+    green_object = image[y:y + h, x:x + w]  # Extract the green object
+    scaled_target = cv2.resize(target_image, (green_object.shape[1], green_object.shape[0]))
 
-for scale_factor in scale_factors:
-    try:
-        # Resize the target image
-        scaled_target = cv2.resize(target_image, None, fx=scale_factor, fy=scale_factor)
+    # Compare the green object with the scaled target image using cv2.matchTemplate with TM_CCOEFF_NORMED method
+    result = cv2.matchTemplate(green_object, scaled_target, cv2.TM_CCOEFF_NORMED)
+    _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
-        for contour in contours:
-            x, y, w, h = cv2.boundingRect(contour)
-            green_object = image[y:y + h, x:x + w]  # Extract the green object
+    # If the current rectangle is a better match, update best_match and best_match_score
+    if max_val > best_match_score:
+        best_match = (x, y, w, h)
+        best_match_score = max_val
 
-            # Resize the green object to match the size of the scaled target image
-            scaled_red_object = cv2.resize(green_object, (scaled_target.shape[1], scaled_target.shape[0]))
+# Draw the rectangles on the green_object
+for contour in contours:
+    x, y, w, h = cv2.boundingRect(contour)
+    if (x, y, w, h) == best_match:
+        cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)  # 빨간색 사각형
+    else:
+        cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 255), 2)  # 노란색 사각형
 
-            # Compare the scaled green object with the scaled target image using cv2.matchTemplate with TM_CCOEFF_NORMED method
-            result = cv2.matchTemplate(scaled_red_object, scaled_target, cv2.TM_CCOEFF_NORMED)
-            _, max_val, _, max_loc = cv2.minMaxLoc(result)
-
-            # If the current rectangle is a better match, update best_match and best_match_score
-            if max_val > best_match_score:
-                best_match = (x, y, w, h)
-                best_match_score = max_val
-                best_scale_factor = scale_factor
-
-        for contour in contours:
-            x, y, w, h = cv2.boundingRect(contour)
-            if (x, y, w, h) == best_match:
-                cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)  # 빨간색 사각형
-            else:
-                cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 255), 2)  # 노란색 사각형
-
-        if best_match is not None:
-            print(f"Best match found at scale factor {best_scale_factor}")
-            # Save the result image
-            cv2.imwrite(result_image_path, image)
-        else:
-            print("None best match!")
-
-    except cv2.error:
-        print(f"스케일 팩터 {scale_factor}에서 오류 발생. 계속 진행합니다.")
+if best_match is not None:
+    print(f"Best match found")
+    print("Score: " + str(best_match_score))
+    # Save the result image
+    cv2.imwrite(result_image_path, image)
+else:
+    print("None best match!")
